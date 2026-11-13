@@ -3,7 +3,6 @@ from collections import deque
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.activations import softmax
 from tensorflow.keras.layers import Input, Dense, Concatenate
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
@@ -95,7 +94,7 @@ class CriticNetwork:
         h1 = Dense(HIDDEN1_UNITS, activation='relu')(h0)
         h2 = Dense(HIDDEN2_UNITS, activation='relu')(h1)
         h3 = Dense(HIDDEN3_UNITS, activation='relu')(h2)
-        Q = Dense(action_dim, activation='relu')(h3)
+        Q = Dense(1)(h3)
         model = Model(inputs=[states, actions], outputs=Q)
         model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate, decay=1e-6))
         return model, actions, states
@@ -139,7 +138,7 @@ class Agent(Portfolio):
 
         self.gamma = 0.95 # discount factor
         self.is_eval = is_eval
-        self.noise = OUNoise(self.action_dim)
+        self.noise = OUNoise(self.action_dim, min_sigma=0.05)
         tau = 0.001  # Target network hyperparameter
         learning_rate_actor = 0.001  # learning rate for Actor network
         learning_rate_critic = 0.001  # learning rate for Critic network
@@ -155,7 +154,7 @@ class Agent(Portfolio):
         self.noise.reset()
 
     def remember(self, state, actions, reward, next_state, done):
-    	self.memory.append((state, actions, reward, next_state, done))
+        self.memory.append((state, actions, reward, next_state, done))
 
     def act(self, state, t):
         actions = self.actor.model.predict(state)[0]
@@ -167,24 +166,20 @@ class Agent(Portfolio):
         # sample random buffer_size long memory
         mini_batch = random.sample(self.memory, self.buffer_size)
 
-        y_batch = []
-        for state, actions, reward, next_state, done in mini_batch:
-            if not done:
-                Q_target_value = self.critic.model_target.predict([next_state, self.actor.model_target.predict(next_state)])
-                y = reward + self.gamma * Q_target_value
-            else:
-                y = reward * np.ones((1, self.action_dim))
-            y_batch.append(y)
-
-        y_batch = np.vstack(y_batch)
-        states_batch = np.vstack([tup[0] for tup in mini_batch]) # batch_size * state_dim
-        actions_batch = np.vstack([tup[1] for tup in mini_batch]) # batch_size * action_dim
+        states_batch = np.vstack([item[0] for item in mini_batch])
+        actions_batch = np.vstack([item[1] for item in mini_batch])
+        rewards = np.asarray([item[2] for item in mini_batch], dtype=np.float32).reshape(-1, 1)
+        next_states = np.vstack([item[3] for item in mini_batch])
+        dones = np.asarray([item[4] for item in mini_batch], dtype=np.float32).reshape(-1, 1)
+        next_actions = self.actor.model_target.predict(next_states, verbose=0)
+        next_q_values = self.critic.model_target.predict([next_states, next_actions], verbose=0)
+        y_batch = rewards + self.gamma * (1 - dones) * next_q_values
         
         # update critic by minimizing the loss
         loss = self.critic.model.train_on_batch([states_batch, actions_batch], y_batch)
 
         # update actor using the sampled policy gradients
-        action_grads_batch = self.critic.gradients(states_batch, self.actor.model.predict(states_batch)) # batch_size * action_dim
+        action_grads_batch = self.critic.gradients(states_batch, self.actor.model.predict(states_batch, verbose=0))
         self.actor.train(states_batch, action_grads_batch)
         
         # update target networks

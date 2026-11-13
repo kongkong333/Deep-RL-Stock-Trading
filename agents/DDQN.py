@@ -18,7 +18,7 @@ from utils import Portfolio
 class Agent(Portfolio):
     def __init__(self, state_dim, balance, is_eval=False, model_name=""):
         super().__init__(balance=balance)
-        self.model_type = 'DQN'
+        self.model_type = 'DDQN'
         self.state_dim = state_dim
         self.action_dim = 3  # hold, buy, sell
         self.memory = deque(maxlen=100)
@@ -32,7 +32,7 @@ class Agent(Portfolio):
         self.is_eval = is_eval
 
         self.model = load_model(f'saved_models/{model_name}.h5') if is_eval else self.model()
-        self.model_target = load_model(f'saved_models/{model_name}_target.h5') if is_eval else self.model
+        self.model_target = self.model()
         self.model_target.set_weights(self.model.get_weights()) # hard copy model parameters to target model parameters
 
         self.tensorboard = TensorBoard(log_dir='./logs/DDQN_tensorboard', update_freq=90)
@@ -50,7 +50,7 @@ class Agent(Portfolio):
         model.add(Dense(units=64, input_dim=self.state_dim, activation='relu'))
         model.add(Dense(units=32, activation='relu'))
         model.add(Dense(units=8, activation='relu'))
-        model.add(Dense(self.action_dim, activation='softmax'))
+        model.add(Dense(self.action_dim))
         model.compile(loss='mse', optimizer=Adam(lr=0.001))
         return model
 
@@ -58,8 +58,8 @@ class Agent(Portfolio):
         self.reset_portfolio()
         self.epsilon = 1.0
 
-    def remember(self, state, actions, reward, next_state, done):
-        self.memory.append((state, actions, reward, next_state, done))
+    def remember(self, state, action, reward, next_state, done):
+        self.memory.append((state, int(action), reward, next_state, done))
 
     def act(self, state):
         if not self.is_eval and np.random.rand() <= self.epsilon:
@@ -71,14 +71,19 @@ class Agent(Portfolio):
         # sample random buffer_size long memory
         mini_batch = random.sample(self.memory, self.buffer_size)
 
-        for state, actions, reward, next_state, done in mini_batch:
-            Q_expected = reward + (1 - done) * self.gamma * np.amax(self.model_target.predict(next_state)[0])
+        states = np.vstack([item[0] for item in mini_batch])
+        actions = np.asarray([item[1] for item in mini_batch], dtype=np.int64)
+        rewards = np.asarray([item[2] for item in mini_batch], dtype=np.float32)
+        next_states = np.vstack([item[3] for item in mini_batch])
+        dones = np.asarray([item[4] for item in mini_batch], dtype=np.float32)
 
-            next_actions = self.model.predict(state)
-            next_actions[0][np.argmax(actions)] = Q_expected
-            
-            history = self.model.fit(state, next_actions, epochs=1, verbose=0)
-            self.update_model_target()
+        targets = self.model.predict(states, verbose=0)
+        next_actions = self.model.predict(next_states, verbose=0).argmax(axis=1)
+        next_q_values = self.model_target.predict(next_states, verbose=0)
+        target_values = rewards + (1 - dones) * self.gamma * next_q_values[np.arange(len(mini_batch)), next_actions]
+        targets[np.arange(len(mini_batch)), actions] = target_values
+        history = self.model.fit(states, targets, epochs=1, verbose=0)
+        self.update_model_target()
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
