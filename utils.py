@@ -4,6 +4,19 @@ from empyrical import sharpe_ratio
 from matplotlib import pyplot as plt
 
 
+def set_global_seed(seed):
+    """Seed Python, NumPy, and TensorFlow random generators for reproducibility."""
+    import random
+    import tensorflow as tf
+
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.keras.utils.set_random_seed(seed)
+    # Available in the project's TensorFlow 2.12 runtime. This also asks TF to
+    # use deterministic implementations for operations that support them.
+    tf.config.experimental.enable_op_determinism()
+
+
 class Portfolio:
     def __init__(self, balance=50000):
         self.initial_portfolio_value = balance
@@ -21,10 +34,6 @@ class Portfolio:
         self.portfolio_values = [self.initial_portfolio_value]
 
         
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-
 def softmax(x):
     return np.exp(x) / np.sum(np.exp(x))
 
@@ -49,23 +58,32 @@ def generate_price_state(stock_prices, end_index, window_size):
         period = stock_prices[start_index:end_index+1]
     else: # if end_index cannot suffice window_size, pad with prices on start_index
         period = -start_index * [stock_prices[0]] + stock_prices[0:end_index+1]
-    return sigmoid(np.diff(period))
+    # Log returns are scale-independent. Clipping limits the effect of extreme
+    # moves while keeping ordinary daily changes in a useful numeric range.
+    returns = np.diff(np.log(np.asarray(period, dtype=np.float64)))
+    return np.clip(returns, -0.1, 0.1) * 10
 
 
 def generate_portfolio_state(stock_price, balance, num_holding):
-    '''logarithmic values of stock price, portfolio balance, and number of holding stocks'''
-    return [np.log(stock_price), np.log(balance), np.log(num_holding + 1e-6)]
+    '''Cash and stock exposure as fractions of current portfolio value.'''
+    stock_value = stock_price * num_holding
+    portfolio_value = max(balance + stock_value, 1e-8)
+    return [balance / portfolio_value, stock_value / portfolio_value]
 
 
 def generate_combined_state(end_index, window_size, stock_prices, balance, num_holding):
     '''
-    return a state representation, defined as
-    adjacent stock prices differences after sigmoid function (for the past window_size days up to end_date) plus
-    logarithmic values of stock price at end_date, portfolio balance, and number of holding stocks
+    Return clipped log returns over the price window, followed by cash and stock
+    exposure ratios for the portfolio at end_index.
     '''
     prince_state = generate_price_state(stock_prices, end_index, window_size)
     portfolio_state = generate_portfolio_state(stock_prices[end_index], balance, num_holding)
     return np.array([np.concatenate((prince_state, portfolio_state), axis=None)])
+
+
+def valid_action_mask(price, balance, num_holding):
+    """Valid actions in Hold, Buy-one-share, Sell-one-share order."""
+    return np.asarray([True, balance >= price, num_holding > 0], dtype=bool)
 
 
 def treasury_bond_daily_return_rate():

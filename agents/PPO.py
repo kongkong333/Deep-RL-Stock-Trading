@@ -41,19 +41,10 @@ class Agent(Portfolio):
         self.reset_portfolio()
         self.memory.clear()
 
-    def action_mask(self, states):
-        states = np.asarray(states)
-        if states.ndim == 1:
-            states = states.reshape(1, -1)
-        price = np.exp(states[:, -3])
-        balance = np.exp(states[:, -2])
-        holdings = np.exp(states[:, -1])
-        return np.stack((np.ones(len(states), dtype=bool), balance > price, holdings > 1e-5), axis=1)
-
-    def act(self, state):
+    def act(self, state, action_mask=None):
         logits, value = self.model(state, training=False)
         logits = logits.numpy()[0]
-        mask = self.action_mask(state)[0]
+        mask = np.ones(self.action_dim, dtype=bool) if action_mask is None else action_mask
         logits[~mask] = -1e9
         probabilities = tf.nn.softmax(logits).numpy()
         action = int(np.argmax(probabilities)) if self.is_eval else int(np.random.choice(self.action_dim, p=probabilities))
@@ -62,17 +53,21 @@ class Agent(Portfolio):
         self.last_value = float(value.numpy()[0, 0])
         return action
 
-    def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state[0].copy(), int(action), float(reward), bool(done), self.last_log_prob, self.last_value))
+    def remember(self, state, action, reward, next_state, done, action_mask=None):
+        if action_mask is None:
+            action_mask = np.ones(self.action_dim, dtype=bool)
+        self.memory.append((state[0].copy(), int(action), float(reward), bool(done),
+                            self.last_log_prob, self.last_value, np.asarray(action_mask, dtype=bool)))
 
     def experience_replay(self):
-        states, actions, rewards, dones, old_log_probs, values = map(np.asarray, zip(*self.memory))
+        states, actions, rewards, dones, old_log_probs, values, masks = map(np.asarray, zip(*self.memory))
         states = states.astype(np.float32)
         actions = actions.astype(np.int32)
         rewards = rewards.astype(np.float32)
         dones = dones.astype(np.float32)
         old_log_probs = old_log_probs.astype(np.float32)
         values = values.astype(np.float32)
+        masks = masks.astype(bool)
 
         advantages = np.zeros_like(rewards)
         gae = 0.0
@@ -87,12 +82,11 @@ class Agent(Portfolio):
         losses = []
         indices = np.arange(len(states))
         for _ in range(self.update_epochs):
-            np.random.shuffle(indices)
             for start in range(0, len(indices), self.batch_size):
                 batch = indices[start:start + self.batch_size]
                 batch_states = tf.convert_to_tensor(states[batch])
                 batch_actions = tf.convert_to_tensor(actions[batch])
-                batch_masks = tf.convert_to_tensor(self.action_mask(states[batch]))
+                batch_masks = tf.convert_to_tensor(masks[batch])
                 batch_old_log_probs = tf.convert_to_tensor(old_log_probs[batch])
                 batch_advantages = tf.convert_to_tensor(advantages[batch])
                 batch_returns = tf.convert_to_tensor(returns[batch])
