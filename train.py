@@ -84,6 +84,9 @@ for e in range(1, num_episode + 1):
         if model_name == 'DDPG':
             actions = agent.act(state, t)
             action = np.argmax(actions)
+        elif model_name == 'PPO':
+            action = agent.act(state)
+            actions = agent.action_probs
         else:
             actions = agent.model.predict(state)[0]
             action = agent.act(state)
@@ -117,14 +120,24 @@ for e in range(1, num_episode + 1):
         agent.return_rates.append((current_portfolio_value - previous_portfolio_value) / previous_portfolio_value)
 
         done = True if t == trading_period else False
-        replay_action = executed_action if model_name in ('DQN', 'DDQN') else np.eye(agent.action_dim)[executed_action]
-        agent.remember(state, replay_action, reward, next_state, done)
+        if model_name == 'DDPG':
+            agent.remember(state, np.eye(agent.action_dim)[executed_action], reward, next_state, done)
+        elif model_name == 'PPO':
+            # PPO must retain the sampled action paired with its old policy probability.
+            agent.remember(state, action, reward, next_state, done)
+        else:
+            agent.remember(state, executed_action, reward, next_state, done)
 
         # update state
         state = next_state
 
         # experience replay
-        if len(agent.memory) > agent.buffer_size:
+        if model_name == 'PPO' and done:
+            num_experience_replay += 1
+            loss = agent.experience_replay()
+            logging.info('Episode: {}\tLoss: {:.2f}\tAction: {}\tReward: {:.2f}\tBalance: {:.2f}\tNumber of Stocks: {}'.format(e, loss, action_dict[executed_action], reward, agent.balance, len(agent.inventory)))
+            agent.tensorboard.on_batch_end(num_experience_replay, {'loss': loss, 'portfolio value': current_portfolio_value})
+        elif model_name != 'PPO' and len(agent.memory) > agent.buffer_size:
             num_experience_replay += 1
             loss = agent.experience_replay()
             logging.info('Episode: {}\tLoss: {:.2f}\tAction: {}\tReward: {:.2f}\tBalance: {:.2f}\tNumber of Stocks: {}'.format(e, loss, action_dict[executed_action], reward, agent.balance, len(agent.inventory)))
@@ -145,6 +158,9 @@ for e in range(1, num_episode + 1):
         elif model_name == 'DDPG':
             agent.actor.model.save_weights('saved_models/DDPG_ep{}_actor.h5'.format(str(e)))
             agent.critic.model.save_weights('saved_models/DDPG_ep{}_critic.h5'.format(str(e)))
+        elif model_name == 'PPO':
+            Path('saved_models').mkdir(exist_ok=True)
+            agent.model.save_weights('saved_models/PPO_ep{}.h5'.format(e))
         logging.info('model saved')
 
 logging.info('total training time: {0:.2f} min'.format((time.time() - start_time)/60))

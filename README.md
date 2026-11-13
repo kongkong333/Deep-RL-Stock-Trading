@@ -1,6 +1,6 @@
 # Deep-Reinforcement-Stock-Trading
 
-This project intends to leverage deep reinforcement learning in portfolio management. The framework structure is inspired by [Q-Trader](https://github.com/edwardhdlu/q-trader). The reward for agents is the net unrealized (meaning the stocks are still in portfolio and not cashed out yet) profit evaluated at each action step. For inaction at each step, a negtive penalty is added to the portfolio as the missed opportunity to invest in "risk-free" Treasury bonds. A lot of new features and improvements are made in the training and evaluation pipelines. All evaluation metrics and visualizations are built from scratch.
+This project explores deep reinforcement learning for single-stock trading. The framework structure is inspired by [Q-Trader](https://github.com/edwardhdlu/q-trader). Each transition observes the portfolio and prices through day `t-1`, executes one action at day `t`'s closing price, then builds the next state from the updated portfolio. The reward combines cumulative portfolio profit with an opportunity-cost penalty when an action is not executed.
 
 Key assumptions and limitations of the current framework:
 - trading has no impact on the market
@@ -16,9 +16,9 @@ Key challenges of the current framework:
 - building a reliable reward mechanism (learning tends to be stationary/stuck in local optima quite often)
 - ensuring the framework is scalable and extensible
 
-Currently, the state is defined as the normalized adjacent daily stock price differences for `n` days plus  `[stock_price, balance, num_holding]`.
+The state contains sigmoid-transformed adjacent closing-price differences over the previous `n` days, plus the logarithms of `[stock_price, balance, num_holding]`. The discrete actions are `Hold`, `Buy` one share, and `Sell` one share.
 
-In the future, we plan to add other state-of-the-art deep reinforcement learning algorithms, such as Proximal Policy Optimization (PPO), to the framework and increase the complexity to the state in each algorithm by constructing more complex price tensors etc. with a wider range of deep learning approaches, such as convolutional neural networks or attention mechanism. In addition, we plan to integrate better pipelines for high quality data source, e.g. from vendors like [Quandl](https://www.quandl.com/); and backtesting, e.g. [zipline](https://github.com/quantopian/zipline).
+The project includes DQN, Double DQN (DDQN), DDPG, and Proximal Policy Optimization (PPO). PPO uses a categorical policy for the three discrete actions, collects one full episode of on-policy transitions, computes generalized advantage estimates, and performs clipped policy updates. It does not use the replay buffer used by DQN-family agents.
 
 ### Getting Started
 To install all libraries/dependencies used in this project, run
@@ -26,28 +26,28 @@ To install all libraries/dependencies used in this project, run
 pip3 install -r requirements.txt
 ```
 
-To train a DDPG agent or a DQN agent, e.g. over S&P 500 from 2010 to 2015, run
+To train an agent, e.g. PPO over S&P 500 from 2010 to 2015, run
 ```bash
-python3 train.py --model_name=model_name --stock_name=stock_name
+python3 train.py --model_name=PPO --stock_name=^GSPC_2010-2015 --num_episode=10
 ```
 
-- `model_name`      is the model to use: either `DQN` or `DDPG`; default is `DQN`
+- `model_name`      is the model to use: `DQN`, `DDQN`, `DDPG`, or `PPO`; default is `DQN`
 - `stock_name`      is the stock used to train the model; default is `^GSPC_2010-2015`, which is S&P 500 from 1/1/2010 to 12/31/2015
 - `window_size`     is the span (days) of observation; default is `10`
 - `num_episode`     is the number of episodes used for training; default is `10`
 - `initial_balance` is the initial balance of the portfolio; default is `50000`
 
-To evaluate a DDPG or DQN agent, run
+Models are saved every five episodes under `saved_models/`. To evaluate a saved PPO model, run
 ```bash
-python3 evaluate.py --model_to_load=model_to_load --stock_name=stock_name
+python3 evaluate.py --model_to_load=PPO_ep10 --stock_name=^GSPC_2018
 ```
 
-- `model_to_load`   is the model to load; default is `DQN_ep10`; alternative is `DDPG_ep10` etc.
+- `model_to_load`   is the checkpoint name without its file extension; for example, `PPO_ep10`, `DQN_ep10`, or `DDPG_ep10`
 - `stock_name`   is the stock used to evaluate the model; default is `^GSPC_2018`, which is S&P 500 from 1/1/2018 to 12/31/2018
 - `initial_balance` is the initial balance of the portfolio; default is `50000`
 - `window_size`     is the span (days) of observation; default is `10`
 
-where `stock_name` can be referred in `data` directory and `model_to_laod` can be referred in `saved_models` directory.
+where `stock_name` refers to a CSV file in `data/` and `model_to_load` refers to a checkpoint in `saved_models/`.
 
 To visualize training loss and portfolio value fluctuations history, run:
 ```bash
@@ -69,6 +69,7 @@ Note that the following results were obtained with 10 epochs of training only.
 ### References:
 - [Deep Q-Learning with Keras and Gym](https://keon.io/deep-q-learning/)
 - [Double Deep Q Networks](https://towardsdatascience.com/double-deep-q-networks-905dd8325412)
+- [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
 - [Using Keras and Deep Deterministic Policy Gradient to play TORCS](https://yanpanlau.github.io/2016/10/11/Torcs-Keras.html)
 - [Practical Deep Reinforcement Learning Approach for Stock Trading](https://arxiv.org/abs/1811.07522)
 - [Introduction to Learning to Trade with Reinforcement Learning](http://www.wildml.com/)

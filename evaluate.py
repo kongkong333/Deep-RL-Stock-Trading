@@ -58,6 +58,9 @@ while True:
         if model_name == 'DDPG':
             actions = agent.act(state, t)
             action = np.argmax(actions)
+        elif model_name == 'PPO':
+            action = agent.act(state)
+            actions = agent.action_probs
         else:
             actions = agent.model.predict(state)[0]
             action = agent.act(state)
