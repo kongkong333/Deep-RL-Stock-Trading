@@ -55,7 +55,7 @@ logging.basicConfig(filename=f'logs/{model_name}_evaluation_{stock_name}.log', f
 
 portfolio_return = 0
 while True:
-    agent = model.Agent(state_dim=window_size+2, balance=initial_balance, is_eval=True, model_name=model_to_load)
+    agent = model.Agent(state_dim=window_size+3, balance=initial_balance, is_eval=True, model_name=model_to_load)
     stock_prices = stock_close_prices(stock_name)
     trading_period = len(stock_prices) - 1
     state = generate_combined_state(0, window_size, stock_prices, agent.balance,

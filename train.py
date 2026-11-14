@@ -19,7 +19,7 @@ parser.add_argument('--train_stocks', nargs='+', default=None,
 parser.add_argument('--window_size', action="store", dest="window_size", default=10, type=int, help="span (days) of observation")
 parser.add_argument('--num_episode', action="store", dest="num_episode", default=10, type=int, help='episode number')
 parser.add_argument('--initial_balance', action="store", dest="initial_balance", default=50000, type=int, help='initial balance')
-parser.add_argument('--episode_length', type=int, default=252, help='trading days per episode; use 0 for the full CSV')
+parser.add_argument('--episode_length', type=int, default=500, help='trading days per episode; shorter datasets use the full available range; use 0 for the full CSV')
 parser.add_argument('--seed', type=int, default=42, help='random seed for reproducible training (default: 42)')
 inputs = parser.parse_args()
 
@@ -44,7 +44,7 @@ action_dict = {0: 'Hold', 1: 'Buy', 2: 'Sell'}
 
 # select learning model
 model = importlib.import_module(f'agents.{model_name}')
-agent = model.Agent(state_dim=window_size + 2, balance=initial_balance)
+agent = model.Agent(state_dim=window_size + 3, balance=initial_balance)
 
 def buy(t):
     if agent.balance >= stock_prices[t]:

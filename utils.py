@@ -77,8 +77,15 @@ def generate_combined_state(end_index, window_size, stock_prices, balance, num_h
     exposure ratios for the portfolio at end_index.
     '''
     prince_state = generate_price_state(stock_prices, end_index, window_size)
+    # Realized volatility from the latest 5 daily log returns. Keep the same
+    # scale as the price-return features (returns are multiplied by 10 there).
+    volatility_window = 5
+    volatility_start = max(0, end_index - volatility_window)
+    volatility_prices = np.asarray(stock_prices[volatility_start:end_index + 1], dtype=np.float64)
+    volatility_returns = np.diff(np.log(volatility_prices))
+    volatility = float(np.std(volatility_returns) * 10) if len(volatility_returns) else 0.0
     portfolio_state = generate_portfolio_state(stock_prices[end_index], balance, num_holding)
-    return np.array([np.concatenate((prince_state, portfolio_state), axis=None)])
+    return np.array([np.concatenate((prince_state, [volatility], portfolio_state), axis=None)])
 
 
 def valid_action_mask(price, balance, num_holding):
