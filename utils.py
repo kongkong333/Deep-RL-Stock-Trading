@@ -58,23 +58,17 @@ def generate_price_state(stock_prices, end_index, window_size):
         period = stock_prices[start_index:end_index+1]
     else: # if end_index cannot suffice window_size, pad with prices on start_index
         period = -start_index * [stock_prices[0]] + stock_prices[0:end_index+1]
-    # Log returns are scale-independent. Clipping limits the effect of extreme
-    # moves while keeping ordinary daily changes in a useful numeric range.
+    # Log returns are scale-independent. Clipping limits the effect of
+    # extreme moves while keeping ordinary daily changes in a useful range.
     returns = np.diff(np.log(np.asarray(period, dtype=np.float64)))
     return np.clip(returns, -0.1, 0.1) * 10
 
 
-def generate_portfolio_state(stock_price, balance, num_holding):
-    '''Cash and stock exposure as fractions of current portfolio value.'''
-    stock_value = stock_price * num_holding
-    portfolio_value = max(balance + stock_value, 1e-8)
-    return [balance / portfolio_value, stock_value / portfolio_value]
-
-
-def generate_combined_state(end_index, window_size, stock_prices, balance, num_holding):
+def generate_combined_state(end_index, window_size, stock_prices, balance, num_holding,
+                            state_scaler=None):
     '''
     Return clipped log returns over the price window, followed by cash and stock
-    exposure ratios for the portfolio at end_index.
+    account features (cash balance, closing price, and number of shares held).
     '''
     prince_state = generate_price_state(stock_prices, end_index, window_size)
     # Realized volatility from the latest 5 daily log returns. Keep the same
@@ -84,8 +78,15 @@ def generate_combined_state(end_index, window_size, stock_prices, balance, num_h
     volatility_prices = np.asarray(stock_prices[volatility_start:end_index + 1], dtype=np.float64)
     volatility_returns = np.diff(np.log(volatility_prices))
     volatility = float(np.std(volatility_returns) * 10) if len(volatility_returns) else 0.0
-    portfolio_state = generate_portfolio_state(stock_prices[end_index], balance, num_holding)
-    return np.array([np.concatenate((prince_state, [volatility], portfolio_state), axis=None)])
+    if state_scaler is None:
+        raise ValueError("state_scaler is required to normalize account state features")
+    price_range = max(state_scaler['close_max'] - state_scaler['close_min'], 1e-8)
+    account_state = [
+        balance / state_scaler['cash_scale'],
+        (stock_prices[end_index] - state_scaler['close_min']) / price_range,
+        num_holding / state_scaler['shares_scale'],
+    ]
+    return np.array([np.concatenate((prince_state, [volatility], account_state), axis=None)])
 
 
 def valid_action_mask(price, balance, num_holding):

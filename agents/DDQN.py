@@ -24,7 +24,7 @@ class Agent(Portfolio):
         self.memory = deque(maxlen=10000)
         self.buffer_size = 64
         self.learning_starts = 100
-        self.train_freq = 4
+        self.train_freq = 1
 
         self.tau = 0.0001
         self.gamma = 0.95
@@ -75,14 +75,8 @@ class Agent(Portfolio):
         return int(np.argmax(options))
 
     def experience_replay(self):
-        # Choose a random start, then keep the batch chronological and within one episode.
-        memories = list(self.memory)
-        valid_starts = [
-            start for start in range(len(memories) - self.buffer_size + 1)
-            if not any(item[4] for item in memories[start:start + self.buffer_size - 1])
-        ]
-        start = random.choice(valid_starts)
-        mini_batch = memories[start:start + self.buffer_size]
+        # Sample independent experiences uniformly across the replay memory.
+        mini_batch = random.sample(self.memory, self.buffer_size)
 
         states = np.vstack([item[0] for item in mini_batch])
         actions = np.asarray([item[1] for item in mini_batch], dtype=np.int64)

@@ -16,7 +16,7 @@ Key challenges of the current framework:
 - building a reliable reward mechanism (learning tends to be stationary/stuck in local optima quite often)
 - ensuring the framework is scalable and extensible
 
-The state contains clipped log returns over the previous `n` days, plus cash and stock exposure ratios. The discrete actions are `Hold`, `Buy` one share, and `Sell` one share. Buy and sell actions are masked when they are not feasible; the mask uses information available at the previous close, and a buy is still checked against its execution price. Episodes follow consecutive trading days. DQN replay randomly selects a start and uses a contiguous batch that does not cross an episode boundary; PPO computes advantages over each chronological episode before updating.
+The state contains the previous five clipped daily log returns, five-day realized volatility, and cash and stock exposure ratios. The five price-return features are clipped to `[-0.1, 0.1]` and multiplied by 10; volatility is the standard deviation of the unscaled five daily log returns, multiplied by 10. The state has 8 values total. The discrete actions are `Hold`, `Buy` one share, and `Sell` one share. Buy and sell actions are masked when they are not feasible; the mask uses information available at the previous close, and a buy is still checked against its execution price. Episodes follow consecutive trading days. DQN replay randomly selects a start and uses a contiguous batch that does not cross an episode boundary; PPO computes advantages over each chronological episode before updating.
 
 The project includes DQN, Double DQN (DDQN), and Proximal Policy Optimization (PPO). DDPG is not offered by the training entry point because its continuous actor output is incompatible with this environment's discrete actions. PPO uses a categorical policy for the three discrete actions, collects one episode of on-policy transitions, computes generalized advantage estimates, and performs clipped policy updates. It does not use the replay buffer used by DQN-family agents.
 
@@ -34,7 +34,6 @@ python3 train.py --model_name=DQN --stock_name=^GSPC_2010-2015 --num_episode=10 
 - `model_name`      is the model to use: `DQN`, `DDQN`, or `PPO`; default is `DQN`
 - `stock_name`      is the stock used to train the model; default is `^GSPC_2010-2015`, which is S&P 500 from 1/1/2010 to 12/31/2015
 - `train_stocks`    optionally accepts multiple training CSV names; each episode samples one CSV and one random window
-- `window_size`     is the span (days) of observation; default is `10`
 - `num_episode`     is the number of episodes used for training; default is `10`
 - `initial_balance` is the initial balance of the portfolio; default is `50000`
 - `episode_length` is the number of trading days per episode; episodes sample random windows from the training CSV; use `0` for the full CSV
@@ -50,10 +49,9 @@ Training also writes one CSV row per episode to `logs/<MODEL>_episode_metrics_<S
 - `model_to_load`   is the checkpoint name without its file extension; for example, `PPO_ep10`, `DQN_ep10`, or `DDPG_ep10`
 - `stock_name`   is the stock used to evaluate the model; default is `^GSPC_2018`, which is S&P 500 from 1/1/2018 to 12/31/2018
 - `initial_balance` is the initial balance of the portfolio; default is `50000`
-- `window_size`     is the span (days) of observation; default is `10`
 
 where `stock_name` refers to a CSV file in `data/` and `model_to_load` refers to a checkpoint in `saved_models/`. Evaluate on a different time period from the training CSV (for example, train on `^GSPC_2010-2015` and evaluate on `^GSPC_2018`) to keep the evaluation period independent.
-The state shape and reward changed, so checkpoints created before this update must be retrained before evaluation.
+The state representation changed to five daily log returns plus volatility and portfolio ratios, so checkpoints created with earlier state representations must be retrained before evaluation.
 
 To visualize training loss and portfolio value fluctuations history, run:
 ```bash

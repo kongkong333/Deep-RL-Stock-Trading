@@ -65,14 +65,8 @@ class Agent(Portfolio):
         return int(np.argmax(options))
 
     def experience_replay(self):
-        # Choose a random start, then keep the batch chronological and within one episode.
-        memories = list(self.memory)
-        valid_starts = [
-            start for start in range(len(memories) - self.buffer_size + 1)
-            if not any(item[4] for item in memories[start:start + self.buffer_size - 1])
-        ]
-        start = random.choice(valid_starts)
-        mini_batch = memories[start:start + self.buffer_size]
+        # Sample individual experiences uniformly, regardless of their order or episode.
+        mini_batch = random.sample(self.memory, self.buffer_size)
         states = np.vstack([experience[0] for experience in mini_batch])
         actions = np.asarray([experience[1] for experience in mini_batch], dtype=np.int64)
         rewards = np.asarray([experience[2] for experience in mini_batch], dtype=np.float32)

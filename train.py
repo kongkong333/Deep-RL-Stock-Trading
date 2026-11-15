@@ -1,6 +1,7 @@
 import argparse
 import csv
 import importlib
+import json
 import logging
 import sys
 import time
@@ -16,7 +17,6 @@ parser.add_argument('--model_name', action="store", dest="model_name", default='
 parser.add_argument('--stock_name', action="store", dest="stock_name", default='^GSPC_2010-2015', help="stock name")
 parser.add_argument('--train_stocks', nargs='+', default=None,
                     help='one or more training CSV names; defaults to --stock_name')
-parser.add_argument('--window_size', action="store", dest="window_size", default=10, type=int, help="span (days) of observation")
 parser.add_argument('--num_episode', action="store", dest="num_episode", default=10, type=int, help='episode number')
 parser.add_argument('--initial_balance', action="store", dest="initial_balance", default=50000, type=int, help='initial balance')
 parser.add_argument('--episode_length', type=int, default=500, help='trading days per episode; shorter datasets use the full available range; use 0 for the full CSV')
@@ -28,12 +28,20 @@ set_global_seed(inputs.seed)
 model_name = inputs.model_name
 stock_name = inputs.stock_name
 train_stock_names = inputs.train_stocks or [stock_name]
-window_size = inputs.window_size
+window_size = 5  # fixed lookback: five daily price log returns
 num_episode = inputs.num_episode
 initial_balance = inputs.initial_balance
 episode_length = inputs.episode_length
 
 prices_by_stock = {name: stock_close_prices(name) for name in train_stock_names}
+training_prices = np.concatenate([np.asarray(prices, dtype=np.float64)
+                                  for prices in prices_by_stock.values()])
+state_scaler = {
+    'cash_scale': float(initial_balance),
+    'close_min': float(training_prices.min()),
+    'close_max': float(training_prices.max()),
+    'shares_scale': float(initial_balance / training_prices.min()),
+}
 dates_by_stock = {
     name: pd.read_csv(Path('data') / f'{name}.csv')['Date'].astype(str).tolist()
     for name in train_stock_names
@@ -44,7 +52,7 @@ action_dict = {0: 'Hold', 1: 'Buy', 2: 'Sell'}
 
 # select learning model
 model = importlib.import_module(f'agents.{model_name}')
-agent = model.Agent(state_dim=window_size + 3, balance=initial_balance)
+agent = model.Agent(state_dim=window_size + 4, balance=initial_balance)
 
 def buy(t):
     if agent.balance >= stock_prices[t]:
@@ -110,7 +118,7 @@ for e in range(1, num_episode + 1):
     start_index = np.random.randint(0, total_trading_period - trading_period + 1)
     end_index = start_index + trading_period
     state = generate_combined_state(start_index, window_size, stock_prices, agent.balance,
-                                    len(agent.inventory))
+                                    len(agent.inventory), state_scaler)
 
     for t in range(start_index + 1, end_index + 1):
         if (t - start_index) % 100 == 0:
@@ -154,7 +162,7 @@ for e in range(1, num_episode + 1):
         reward = (current_portfolio_value - previous_portfolio_value) / initial_balance
 
         next_state = generate_combined_state(t, window_size, stock_prices, agent.balance,
-                                             len(agent.inventory))
+                                             len(agent.inventory), state_scaler)
         next_action_mask = valid_action_mask(stock_prices[t], agent.balance, len(agent.inventory))
 
         agent.portfolio_values.append(current_portfolio_value)
@@ -217,6 +225,8 @@ for e in range(1, num_episode + 1):
     # save models periodically
     if e % 5 == 0:
         Path('saved_models').mkdir(exist_ok=True)
+        scaler_path = Path('saved_models') / f'{model_name}_ep{e}_state_scaler.json'
+        scaler_path.write_text(json.dumps(state_scaler, indent=2), encoding='utf-8')
         if model_name == 'DQN':
             agent.model.save('saved_models/DQN_ep' + str(e) + '.h5')
             agent.model_target.save('saved_models/DQN_ep{}_target.h5'.format(e))
