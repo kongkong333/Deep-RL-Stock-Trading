@@ -22,6 +22,6 @@ The DQN and PPO training plots below were generated with the first and second co
 
 Training is currently unstable and needs further optimization.
 
-## Reference
+## Attribution and License
 
-Project structure inspired by Albert-Z-Guo's [Deep-Reinforcement-Stock-Trading](https://github.com/Albert-Z-Guo/Deep-Reinforcement-Stock-Trading) (GPL-3.0).
+This repository is a modified version of [Albert-Z-Guo's Deep-Reinforcement-Stock-Trading](https://github.com/Albert-Z-Guo/Deep-Reinforcement-Stock-Trading), which is licensed under GPL-3.0. This version has been modified through 2026-11-17. It is distributed under GPL-3.0; see [LICENSE](LICENSE).
