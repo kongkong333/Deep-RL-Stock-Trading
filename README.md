@@ -1,4 +1,8 @@
-# DRST
+# Deep-RL-Stock-Trading
+
+**Deep reinforcement learning for stock trading, quantitative finance, and portfolio management.**
+
+I'm [Kexiang Wang](https://github.com/kongkong333). This project explores DQN, DDQN, and PPO agents for trading historical S&P 500 data, with Python and TensorFlow. It focuses on portfolio management, backtesting, and visualizing model performance. If you're searching for work on deep reinforcement learning, algorithmic trading, or quantitative finance, you can find me through this project or my [GitHub profile](https://github.com/kongkong333).
 
 ```bash
 python train.py --model_name=DQN --stock_name=^GSPC_2012-2014 --num_episode=50 --seed=202611
