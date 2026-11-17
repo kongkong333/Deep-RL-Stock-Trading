@@ -2,7 +2,7 @@
 
 **Deep reinforcement learning for stock trading, quantitative finance, and portfolio management.**
 
-I'm [Kexiang Wang](https://github.com/kongkong333). This project explores DQN, DDQN, and PPO agents for trading historical S&P 500 data, with Python and TensorFlow. It focuses on portfolio management, backtesting, and visualizing model performance. If you're searching for work on deep reinforcement learning, algorithmic trading, or quantitative finance, you can find me through this project or my [GitHub profile](https://github.com/kongkong333).
+This project explores DQN, DDQN, and PPO agents for trading historical S&P 500 data, with Python and TensorFlow. It focuses on portfolio management, backtesting, and visualizing model performance.
 
 ```bash
 python train.py --model_name=DQN --stock_name=^GSPC_2012-2014 --num_episode=50 --seed=202611
@@ -28,4 +28,5 @@ Training is currently unstable and needs further optimization.
 
 ## Attribution and License
 
-This repository is a modified version of [Albert-Z-Guo's Deep-Reinforcement-Stock-Trading](https://github.com/Albert-Z-Guo/Deep-Reinforcement-Stock-Trading), which is licensed under GPL-3.0. This version has been modified through 2026-11-17. It is distributed under GPL-3.0; see [LICENSE](LICENSE).
+The initial framework for this project was based on [Albert-Z-Guo's Deep-Reinforcement-Stock-Trading](https://github.com/Albert-Z-Guo/Deep-Reinforcement-Stock-Trading). The state representation and agent models have since been modified. The upstream project is licensed under GPL-3.0, and this project is distributed under GPL-3.0 as well; see [LICENSE](LICENSE). This project has been modified through 2026-11-17.
+
